@@ -23,7 +23,7 @@ class CoaT_ULSTM(nn.Module):
             raise Exception("Unknown model")
 
         if pre is not None:
-            sd = torch.load(pre)["model"]
+            sd = torch.load(pre, weights_only=False)["model"]
             print(self.enc.load_state_dict(sd, strict=False))
 
         self.lstm = nn.ModuleList([LSTM_block(nc[-2]), LSTM_block(nc[-1])])
@@ -40,6 +40,12 @@ class CoaT_ULSTM(nn.Module):
         nt = x.shape[2]
         x = x.permute(0, 2, 1, 3, 4).flatten(0, 1)
         x = F.interpolate(x, scale_factor=2, mode="bicubic").clip(0, 1)
+        
+        # ImageNet正規化 (CoaTが期待する入力)
+        mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+        x = (x - mean) / std
+        
         encs = self.enc(x)
         encs = [encs[k] for k in encs]
         encs = [

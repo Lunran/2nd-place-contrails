@@ -1,0 +1,310 @@
+# CoaT (Co-Scale Conv-Attentional Image Transformers) モデル詳細
+
+## 概要
+
+CoaTは、Convolutional attention（畳み込み注意）機構を持つマルチスケール画像Transformerアーキテクチャである。本プロジェクトでは、航空写真からの飛行機雲検出タスクに適用している。
+
+## アーキテクチャ構成
+
+### 基本構成要素
+
+#### 1. Patch Embedding
+- 各スケールで2×2のパッチサイズで段階的にダウンサンプリング
+- Layer Normalizationを適用
+
+#### 2. Convolutional Position Encoding (CPE)
+```python
+class ConvPosEnc(nn.Module):
+    def __init__(self, dim, k=3):
+        self.proj = nn.Conv2d(dim, dim, k, 1, k//2, groups=dim)
+```
+- 3×3の深さ別畳み込み（Depthwise Convolution）
+- CLSトークンと画像トークンを分離して処理
+
+#### 3. Convolutional Relative Position Encoding (CRPE)
+```python
+class ConvRelPosEnc(nn.Module):
+    def __init__(self, Ch, h, window):
+        # window: {3:2, 5:3, 7:3} - 異なるウィンドウサイズとヘッド数
+```
+- 複数ウィンドウサイズ（3×3, 5×5, 7×7）の畳み込み
+- 各ウィンドウサイズに対応するattention headを分割
+- グループ畳み込みによる効率的な実装
+
+#### 4. Factorized Attention
+```python
+# 因子分解された注意機構
+k_softmax = k.softmax(dim=2)  # キーのソフトマックス
+factor_att = einsum('b h n k, b h k v -> b h n v', q, k_softmax_T_dot_v)
+```
+- 従来のQ・K^T・Vを効率的に因子分解
+- 計算複雑度をO(N²)からO(N)に削減
+
+##### Factorized Attentionの計算例（小画像での具体的計算量比較）
+
+**設定**: 32×32画像、patch_size=4、embed_dim=128、num_heads=8の場合
+
+- **パッチ数**: N = (32/4)² = 64
+- **ヘッド次元**: Ch = 128/8 = 16
+- **バッチサイズ**: B = 1（簡単のため）
+
+**従来の自己注意機構**:
+```python
+# Step 1: Q @ K^T → [1, 8, 64, 16] @ [1, 8, 16, 64] = [1, 8, 64, 64]
+attention_weights = Q @ K.transpose(-2, -1)  # 計算量: 64 × 64 × 16 = 65,536 ops
+# Step 2: softmax + attention_weights @ V → [1, 8, 64, 64] @ [1, 8, 64, 16] = [1, 8, 64, 16]
+output = attention_weights @ V                # 計算量: 64 × 64 × 16 = 65,536 ops
+# 総計算量: 131,072 ops (O(N²×Ch))
+```
+
+**Factorized Attention**:
+```python
+# Step 1: K^T @ V → [1, 8, 16, 64] @ [1, 8, 64, 16] = [1, 8, 16, 16]
+k_softmax_T_dot_v = K_softmax.transpose(-2, -1) @ V  # 計算量: 16 × 64 × 16 = 16,384 ops
+# Step 2: Q @ (K^T @ V) → [1, 8, 64, 16] @ [1, 8, 16, 16] = [1, 8, 64, 16]
+factor_att = Q @ k_softmax_T_dot_v                   # 計算量: 64 × 16 × 16 = 16,384 ops
+# 総計算量: 32,768 ops (O(N×Ch²))
+```
+
+**効率化の結果**:
+- **計算量削減率**: 131,072 → 32,768 = **75%削減**
+- **スピードアップ**: 約**4倍高速化**
+- **メモリ使用量**: attention_weights行列（64×64=4,096要素）が不要
+
+この効率化により、より大きな画像（例：256×256 → N=4,096）でも実用的な計算時間を実現できます。
+
+### モデルバリアント
+
+#### CoaT シリーズ（Parallel Blocks使用）
+1. **coat_tiny**: [152, 152, 152, 152]次元、parallel_depth=6
+2. **coat_mini**: [152, 216, 216, 216]次元、parallel_depth=6  
+3. **coat_small**: [152, 320, 320, 320]次元、parallel_depth=6
+
+#### CoaT-Lite シリーズ（Serial Blocksのみ）
+1. **coat_lite_tiny**: [64, 128, 256, 320]次元
+2. **coat_lite_mini**: [64, 128, 320, 512]次元
+3. **coat_lite_small**: [64, 128, 320, 512]次元、深度[3, 4, 6, 3]
+4. **coat_lite_medium**: [128, 256, 320, 512]次元、深度[3, 6, 10, 8]
+
+### Serial Block
+```python
+class SerialBlock(nn.Module):
+    def forward(self, x, size):
+        # Convolutional Position Encoding
+        x = self.cpe(x, size)
+        # Factorized Attention + CRPE
+        cur = self.factoratt_crpe(self.norm1(x), size)
+        x = x + self.drop_path(cur)
+        # MLP
+        cur = self.mlp(self.norm2(x))
+        x = x + self.drop_path(cur)
+        return x
+```
+
+### Parallel Block
+```python
+class ParallelBlock(nn.Module):
+    def forward(self, x1, x2, x3, x4, sizes):
+        # 各スケール間での特徴量交換
+        upsample3_2 = self.upsample(cur3, output_size=(H2,W2))
+        upsample4_2 = self.upsample(cur4, output_size=(H2,W2))
+        downsample2_3 = self.downsample(cur2, output_size=(H3,W3))
+        # 特徴量融合
+        cur2 = cur2 + upsample3_2 + upsample4_2
+        cur3 = cur3 + upsample4_3 + downsample2_3
+        cur4 = cur4 + downsample3_4 + downsample2_4
+```
+
+## 飛行機雲検出への適用
+
+### 1. CoaT_U (U-Net variant)
+```python
+class CoaT_U(nn.Module):
+    def __init__(self, arch='medium'):
+        self.enc = coat_lite_medium(return_interm_layers=True)
+        self.dec4 = UnetBlock(nc[-1], nc[-2], 384)
+        self.dec3 = UnetBlock(384, nc[-3], 192)
+        self.dec2 = UnetBlock(192, nc[-4], 96)
+        self.fpn = FPN([nc[-1], 384, 192], [32]*3)
+```
+
+**特徴:**
+- CoaTエンコーダー + U-Netデコーダー
+- Feature Pyramid Network（FPN）によるマルチスケール特徴融合
+- 単一フレーム処理（時系列なし）
+
+### 2. CoaT_ULSTM (LSTM variant)
+```python
+class CoaT_ULSTM(nn.Module):
+    def __init__(self, arch="medium"):
+        self.lstm = nn.ModuleList([LSTM_block(nc[-2]), LSTM_block(nc[-1])])
+```
+
+**特徴:**
+- 上位2層にLSTMブロックを追加
+- 時系列データ（5フレーム）の時間的依存関係をモデル化
+- 最新フレームの出力を使用
+
+### 3. CoaT_UT (Temporal Mixer variant)
+```python
+class CoaT_UT(nn.Module):
+    def __init__(self, arch='medium', num_layers=2):
+        self.mixer = nn.ModuleList([Tmixer(nc[-2], num_layers=num_layers),
+                                   Tmixer(nc[-1], num_layers=num_layers)])
+```
+
+**特徴:**
+- カスタムTemporal Mixer（Tmixer）を使用
+- LSTMより軽量な時間的特徴融合
+- より効率的な時系列処理
+
+## 前処理・後処理
+
+### 入力前処理
+```python
+x = F.interpolate(x, scale_factor=2, mode='bicubic').clip(0, 1)
+```
+- Bicubic補間による2倍アップサンプリング
+- 値を[0,1]にクリッピング
+
+### 出力後処理
+```python
+if self.up_result != 0: 
+    x = F.interpolate(x, scale_factor=self.up_result, mode='bilinear')
+```
+- Bilinear補間による最終出力のリサイズ
+
+## 技術的優位性
+
+1. **効率的な注意機構**: Factorized Attentionにより計算量を大幅削減
+2. **マルチスケール処理**: 異なる解像度での特徴抽出・融合
+3. **位置エンコーディング**: CPE + CRPEによる効果的な位置情報の組み込み
+4. **柔軟なアーキテクチャ**: Serial/Parallelブロックの組み合わせ
+5. **時系列対応**: LSTM/Temporal Mixerによる時間的依存関係の学習
+
+### Factorized Attentionの適用範囲と制約
+
+#### 適用可能な注意機構
+- **自己注意機構 (Self-Attention)**: ✅ **完全対応**
+  - ViT、BERT、GPTなどの標準的な自己注意
+  - Q, K, Vが同一入力から生成される場合に最も効果的
+  - 計算量削減効果: O(N²) → O(N×Ch²)
+
+- **クロス注意機構 (Cross-Attention)**: ⚠️ **部分的制約**
+  - Encoder-Decoderアーキテクチャ（T5、BART等）
+  - Q≠K,Vの場合、因子分解の効果が限定的
+  - KとVのシーケンス長が異なる場合は適用困難
+
+#### 技術的制約と条件
+
+1. **ソフトマックス操作の変更**
+   ```python
+   # 従来: softmax(Q@K^T/√d) @ V
+   # Factorized: Q @ (softmax(K)^T @ V)
+   ```
+   - Kに直接ソフトマックスを適用するため、注意の解釈が変化
+   - 理論的には近似であり、完全に等価ではない
+
+2. **次元の制約**
+   - **効果的な条件**: Ch << N (ヘッド次元 << シーケンス長)
+   - 短いシーケンス（N < 64）では効果が限定的
+   - 極端に大きなヘッド次元では逆効果の可能性
+
+3. **アーキテクチャ依存性**
+   - **Vision Transformer**: ✅ 高い効果（画像パッチは通常長いシーケンス）
+   - **Language Model**: ⚠️ シーケンス長に依存
+   - **Multi-Modal**: △ モダリティ間の相互作用で制約
+
+#### 実装での注意点
+
+**効果的な適用例**:
+- **CoaT**: 画像の階層的処理で高効果
+- **PVT (Pyramid Vision Transformer)**: マルチスケール特徴抽出
+- **Swin Transformer**: ウィンドウ注意との組み合わせ
+
+**制約がある適用例**:
+- **DETR**: Object QueriesとImage Featuresのクロス注意
+- **CLIP**: テキスト-画像間のクロスモーダル注意
+- **Retrieval-Augmented Generation**: 外部知識との注意計算
+
+#### 代替効率化手法との比較
+
+| 手法 | 計算量 | 適用範囲 | 精度保持 |
+|------|--------|----------|----------|
+| **Factorized Attention** | O(N×Ch²) | 自己注意◎ | 高 |
+| **Linear Attention** | O(N×Ch) | 汎用◎ | 中 |
+| **Sparse Attention** | O(N×√N) | 長シーケンス◎ | 高 |
+| **Low-rank Attention** | O(N×r) | 汎用○ | 中 |
+
+#### 実用的な適用指針
+
+**推奨する場合**:
+- 画像処理タスク（ViT、Segmentation）
+- シーケンス長 > 256のタスク
+- 自己注意が主体のアーキテクチャ
+
+**注意が必要な場合**:
+- 短いシーケンス（< 64）
+- クロス注意が重要なタスク
+- 精密な注意パターンが必要なタスク
+
+## パラメータ設定
+
+### デフォルト設定
+- `patch_size`: 4
+- `num_heads`: 8  
+- `mlp_ratios`: [4, 4, 4, 4] または [8, 8, 4, 4]
+- `crpe_window`: {3:2, 5:3, 7:3}
+- `drop_path_rate`: 訓練時に設定
+
+### 飛行機雲検出用設定
+- `num_classes`: 1（バイナリセグメンテーション）
+- `return_interm_layers`: True（中間特徴量を返す）
+- アーキテクチャ: 主に'medium'を使用
+
+## まとめ
+
+CoaTモデルは、畳み込み注意機構とマルチスケール処理により、効率的かつ高精度な画像認識を実現する。本プロジェクトでは、U-Net構造と組み合わせることで飛行機雲の精密なセグメンテーションを可能にしている。時系列処理機能により、連続する衛星画像からの動的な雲の変化も捉えることができる。
+
+## 論文情報
+
+### 原論文
+**タイトル**: "Co-Scale Conv-Attentional Image Transformers"  
+**著者**: Weijian Xu, Yifan Xu, Tyler Chang, Zhuowen Tu  
+**所属**: University of California San Diego  
+**発表会議**: ICCV 2021  
+**arXiv**: https://arxiv.org/abs/2104.06399  
+**公式実装**: https://github.com/mlpc-ucsd/CoaT  
+
+### 主要貢献
+1. **Co-Scale Mechanism**: 異なる解像度スケール間での効率的な特徴量共有
+2. **Conv-Attentional Blocks**: 畳み込みと自己注意機構の最適な統合
+3. **Factorized Attention**: O(N²)からO(N)への計算複雑度削減
+4. **Convolutional Relative Position Encoding (CRPE)**: 畳み込みベースの相対位置エンコーディング
+5. **Convolutional Position Encoding (CPE)**: 条件付き位置エンコーディング
+
+### ベンチマーク結果
+- **ImageNet-1K分類**: 
+  - CoaT-Lite-Tiny: 77.5% top-1 accuracy
+  - CoaT-Lite-Medium: 79.1% top-1 accuracy
+  - CoaT-Medium: 81.1% top-1 accuracy
+- **COCO物体検出**: 44.1 mAP (RetinaNet backbone)
+- **ADE20Kセマンティックセグメンテーション**: 47.1 mIoU (Semantic FPN)
+
+### 技術的革新
+従来のVision Transformerが抱える以下の課題を解決：
+- **計算効率**: Factorized Attentionによる大幅な計算量削減
+- **位置情報**: CPE + CRPEによる効果的な空間情報統合  
+- **マルチスケール**: Serial/Parallelブロックによる階層的特徴抽出
+- **誘導バイアス**: 畳み込み演算による適切な局所性の導入
+
+### 引用
+```bibtex
+@inproceedings{xu2021coat,
+  title={Co-scale conv-attentional image transformers},
+  author={Xu, Weijian and Xu, Yifan and Chang, Tyler and Tu, Zhuowen},
+  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision},
+  pages={9981--9990},
+  year={2021}
+}
+```

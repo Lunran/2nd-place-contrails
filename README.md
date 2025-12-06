@@ -58,7 +58,7 @@ train.py config.json \
        SEED 2023 \
        FOLD 0 \
        BS 8 \
-       EPOCH 24 \
+       EPOCHS 24 \
 ```
 For our competition, we trained the model five times using different seeds.
 
@@ -68,7 +68,7 @@ For our competition, we trained the model five times using different seeds.
 To train a 5-frame sequential model using the CoaT encoder.
 
 ```bash
-train.py config.json \
+uv run python train.py config.json \
        MODEL CoaT_ULSTM \
        OUT experiments \
        FNAME Seq_CoaT_512 \
@@ -76,8 +76,8 @@ train.py config.json \
        LOSS_FUNC loss_comb \
        SEED 2023 \
        FOLD 0 \
-       BS 8 \
-       EPOCH 24 \
+       BS 2 \
+       EPOCHS 1 \
 ```
 For our competition, we trained the model five times using different seeds.
 
@@ -96,7 +96,7 @@ train.py config.json \
        SEED 2023 \
        FOLD 0 \
        BS 8 \
-       EPOCH 24 \
+       EPOCHS 24 \
 ```
 For our competition, we trained the model five times using different seeds.
 
@@ -118,7 +118,7 @@ train.py config.json \
        SEED 2023 \
        FOLD 0 \
        BS 8 \
-       EPOCH 24 \
+       EPOCHS 24 \
 ```
 
 

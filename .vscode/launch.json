@@ -1,0 +1,45 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "train",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "train",
+            "args": [
+                "config.json",
+                "MODEL", "CoaT_ULSTM",
+                "OUT", "experiments",
+                "FNAME", "Seq_CoaT_512",
+                "LR_MAX", "3.5e-4",
+                "LOSS_FUNC", "loss_comb",
+                "SEED", "2023",
+                "FOLD", "0",
+                "BS", "2",
+                "EPOCHS", "1"
+            ],
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+            },
+            "justMyCode": false
+        },
+        {
+            "name": "base_train",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "base_train",
+            "args": [
+                "--size", "1000",
+            ],
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+            },
+            "justMyCode": false
+        }
+    ]
+}

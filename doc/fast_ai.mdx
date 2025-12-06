@@ -1,0 +1,391 @@
+# Fast.ai Learner Usage Guide
+
+## 概要
+
+このプロジェクトでは、コントレイル検出タスクにおいてfast.aiのLearnerクラスを中心とした深層学習フレームワークを活用している。本文書では、プロジェクト内でのfast.ai Learnerの具体的な使用方法と実装について詳述する。
+
+## プロジェクト構成における fast.ai の位置づけ
+
+### 主要ファイル構成
+
+- `train.py`: メインの学習スクリプト
+- `src_inference1/fastai_fix.py`: fast.aiのカスタム拡張
+- `src_inference1/utils.py`: メトリクス・オプティマイザー等のユーティリティ
+- `config.json`: 学習設定ファイル
+
+## Learner の初期化と設定
+
+### 基本的な Learner 構築
+
+```python
+from src_inference1.fastai_fix import *
+from src_inference1.utils import WrapperOver9000, F_th
+from functools import partial
+
+# データローダー作成
+data = ImageDataLoaders.from_dsets(
+    ds_train,
+    ds_val,
+    bs=config["BS"],
+    num_workers=config["NUM_WORKERS"],
+    pin_memory=True,
+).cuda()
+
+# Learner 初期化
+learn = Learner(
+    data,
+    model,
+    path=config["OUT"],
+    loss_func=config["LOSS_FUNC"],
+    metrics=[config["METRIC"]],
+    cbs=[
+        GradientClip(3.0),
+        GradientAccumulation(int(32 / config["BS"] + 0.5)),
+        CSVLogger(),
+        SaveModelCallback(monitor="f_th"),
+    ],
+    opt_func=partial(WrapperOver9000, eps=1e-4),
+).to_fp16()
+```
+
+### 主要コンポーネント解説
+
+#### 1. データローダー (ImageDataLoaders)
+
+```python
+data = ImageDataLoaders.from_dsets(
+    ds_train,        # 訓練データセット
+    ds_val,          # 検証データセット
+    bs=config["BS"], # バッチサイズ
+    num_workers=config["NUM_WORKERS"],
+    pin_memory=True,
+).cuda()
+```
+
+- `ContrailsDatasetV0` クラスから作成されたデータセットを使用
+- GPU利用のため `.cuda()` を適用
+- `pin_memory=True` により GPU転送を効率化
+
+#### 2. 損失関数
+
+```python
+def loss_comb(x, y):
+    return F.binary_cross_entropy_with_logits(x, y) + \
+        0.01 * 0.5 * (lovasz_hinge(x, y, per_image=False) + 
+                      lovasz_hinge(-x, 1-y, per_image=False))
+```
+
+- Binary Cross Entropy と Lovasz Hinge Loss の組み合わせ
+- セグメンテーションタスクに特化した損失設計
+
+#### 3. カスタムメトリクス
+
+```python
+class F_th(Metric):
+    """閾値最適化による F1 スコア計算"""
+    def __init__(self, ths=np.arange(0.1, 0.9, 0.01), beta=1):
+        self.ths = ths
+        self.beta = beta
+```
+
+- 複数の閾値でF1スコアを計算し、最適値を自動選択
+- セグメンテーション精度の適切な評価が可能
+
+#### 4. コールバック設定
+
+```python
+cbs=[
+    GradientClip(3.0),                              # 勾配クリッピング
+    GradientAccumulation(int(32 / config["BS"] + 0.5)), # 勾配蓄積
+    CSVLogger(),                                    # ログ記録
+    SaveModelCallback(monitor="f_th"),              # モデル保存
+]
+```
+
+##### GradientClip(3.0)
+- 勾配爆発を防止
+- セグメンテーションモデルでの安定学習に寄与
+
+##### GradientAccumulation
+- 実効バッチサイズを32に調整
+- メモリ制約下での大バッチサイズ効果を実現
+
+##### SaveModelCallback
+- F1スコア (`f_th`) を監視して最良モデルを自動保存
+
+#### 5. オプティマイザー
+
+```python
+opt_func=partial(WrapperOver9000, eps=1e-4)
+```
+
+- カスタムオプティマイザー `Over9000` (RAdam ベース) を使用
+- `WrapperOver9000` による fast.ai との統合
+
+#### 6. 混合精度学習
+
+```python
+.to_fp16()
+```
+
+- 自動混合精度 (AMP) による高速学習
+- `src_inference1/fastai_fix.py` で拡張された `MixedPrecision` コールバックを使用
+
+## カスタム拡張 (fastai_fix.py)
+
+### MixedPrecision コールバック
+
+```python
+@delegates(GradScaler)
+class MixedPrecision(Callback):
+    """PyTorch autocast と GradScaler を用いた混合精度学習"""
+    order = 10
+    
+    def before_fit(self):
+        self.autocast, self.learn.scaler, self.scales = (
+            autocast(),
+            GradScaler(**self.kwargs),
+            L(),
+        )
+```
+
+- PyTorch の `autocast` と `GradScaler` を fast.ai に統合
+- 学習の安定性と高速化を両立
+
+## 学習実行フロー
+
+### 1. One Cycle Learning
+
+```python
+learn.fit_one_cycle(
+    config["EPOCHS"], 
+    lr_max=config["LR_MAX"], 
+    pct_start=config["PCT_START"]
+)
+```
+
+- **パラメータ**:
+  - `EPOCHS`: エポック数（通常4エポック）
+  - `LR_MAX`: 最大学習率（3.5e-4）
+  - `PCT_START`: 学習率上昇期間の割合（0.1）
+
+### 2. モデル保存
+
+```python
+torch.save(
+    learn.model.module.state_dict(),
+    os.path.join(config["OUT"], f'{config["FNAME"]}_{config["FOLD"]}.pth'),
+)
+```
+
+- `DataParallel` ラップされたモデルから `.module.state_dict()` を抽出
+- fold番号を含むファイル名で保存
+
+## 設定ファイル (config.json) 解説
+
+```json
+{
+    "PATH": "data/",
+    "SEED": 2023,
+    "BS": 2,
+    "EPOCHS": 4,
+    "NUM_WORKERS": 4,
+    "LR_MAX": 3.5e-4,
+    "PCT_START": 0.1,
+    "OUT": "experiments",
+    "FNAME": "Seq_NextViT_512_0",
+    "FOLD": 0,
+    "MODEL": "SAM_U",
+    "WEIGHTS": false,
+    "LOSS_FUNC": "loss_comb",
+    "METRIC": "F_th"
+}
+```
+
+### 主要パラメータ
+
+- **BS**: バッチサイズ（メモリ制約により小さく設定）
+- **EPOCHS**: 短期間での効率的学習（4エポック）
+- **LR_MAX**: セグメンテーションタスクに適した学習率
+- **MODEL**: 使用するアーキテクチャ（SAM_U, NeXtViT_ULSTM 等）
+
+## 利用可能なモデルアーキテクチャ
+
+本プロジェクトでは以下のモデルが fast.ai Learner と統合されている：
+
+1. **SAM_U**: Segment Anything Model の U-Net バリアント
+2. **SAM_USA, SAM_UV1, SAM_UV2, SAM_UV3**: SAM の各種改良版
+3. **NeXtViT_ULSTM**: Vision Transformer + LSTM の組み合わせ
+4. **CoaT_ULSTM, CoaT_UT**: Class-Attention in Image Transformers
+
+## 使用例とベストプラクティス
+
+### 基本的な学習実行
+
+```bash
+python train.py config.json
+```
+
+### 設定の動的変更
+
+```bash
+python train.py config.json MODEL "NeXtViT_ULSTM" FOLD 1 LR_MAX 2e-4
+```
+
+### 事前学習済みモデルの利用
+
+```bash
+python train.py config.json WEIGHTS "experiments/model_fold0.pth"
+```
+
+## 注意事項とトラブルシューティング
+
+### 1. メモリ管理
+- バッチサイズは GPU メモリに応じて調整
+- `GradientAccumulation` により実効的な大バッチサイズを確保
+
+### 2. 学習率設定
+- セグメンテーションタスクでは比較的小さな学習率が推奨
+- One Cycle Learning の `pct_start` は 0.1 程度が適切
+
+### 3. モデル保存
+- `DataParallel` 使用時は `.module.state_dict()` で保存
+- fold 番号を含む命名規則で管理
+
+### 4. 混合精度学習
+- カスタム `MixedPrecision` コールバックが自動的に適用
+- 学習の安定性に問題がある場合は `.to_fp16()` を除去
+
+## CoaT_ULSTM モジュール読み込みシーケンス解析
+
+以下のコマンド実行時における CoaT_ULSTM.py の読み込みシーケンスを詳細に解説する：
+
+```bash
+uv run python train.py config.json \
+       MODEL CoaT_ULSTM \
+       OUT experiments \
+       FNAME Seq_CoaT_512 \
+       LR_MAX 3.5e-4 \
+       LOSS_FUNC loss_comb \
+       SEED 2023 \
+       FOLD 0 \
+       BS 2 \
+       EPOCHS 1
+```
+
+### 1. Python スクリプト起動とインポート段階
+
+#### 1.1 train.py の初期化
+```python
+# train.py の冒頭でのインポート実行
+from src_inference1.CoaT_ULSTM import CoaT_ULSTM  # ← ここで CoaT_ULSTM.py が読み込まれる
+```
+
+#### 1.2 CoaT_ULSTM.py モジュールの依存関係解決
+```python
+# CoaT_ULSTM.py 内でのインポート順序
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from collections import OrderedDict
+
+# プロジェクト内モジュールの読み込み
+from .coat import CoaT, coat_lite_mini, coat_lite_small, coat_lite_medium  # coat.py 読み込み
+from .layers import *  # layers.py 読み込み
+```
+
+#### 1.3 依存モジュールの詳細読み込み
+
+**coat.py の読み込み**：
+- Vision Transformer ベースの CoaT アーキテクチャ定義
+- `coat_lite_mini`, `coat_lite_small`, `coat_lite_medium` 関数の定義
+- timm ライブラリからの層定義インポート
+
+**layers.py の読み込み**：
+- `LSTM_block`, `UnetBlock`, `FPN`, `UpBlock` などの独自層定義
+- `PixelShuffle_ICNR`, `LayerNorm2d` などのカスタム層
+
+### 2. 設定ファイル処理とコマンドライン引数解析
+
+#### 2.1 config.json の読み込み
+```python
+config_data = read_config_file(config_file_path)
+# デフォルト設定：{"MODEL": "SAM_U", ...}
+```
+
+#### 2.2 コマンドライン引数による設定上書き
+```python
+# args.configs = ["MODEL", "CoaT_ULSTM", "OUT", "experiments", ...]
+for config_key, config_value in zip(args.configs[::2], args.configs[1::2]):
+    # "MODEL" → "CoaT_ULSTM" への変更
+    current_data[last_key] = value
+```
+
+結果的に `config_data["MODEL"]` は文字列 `"CoaT_ULSTM"` に設定される。
+
+### 3. 動的モデルインスタンス化
+
+#### 3.1 文字列からクラスオブジェクトへの変換
+```python
+# train.py line 103
+config_data["MODEL"] = getattr(sys.modules[__name__], config_data["MODEL"])()
+```
+
+この処理により：
+1. `config_data["MODEL"]` = `"CoaT_ULSTM"` (文字列)
+2. `getattr(sys.modules[__name__], "CoaT_ULSTM")` でクラス参照を取得
+3. `CoaT_ULSTM()` でインスタンス化実行
+
+#### 3.2 CoaT_ULSTM クラスの初期化処理
+
+```python
+def __init__(self, pre=None, arch="medium", num_classes=1, ps=0, **kwargs):
+    super().__init__()
+    # arch="medium" がデフォルト → coat_lite_medium を選択
+    if arch == "medium":
+        self.enc = coat_lite_medium(return_interm_layers=True)
+        nc = [128, 256, 320, 512]
+    
+    # LSTM ブロックの初期化
+    self.lstm = nn.ModuleList([LSTM_block(nc[-2]), LSTM_block(nc[-1])])
+    # デコーダーブロックの初期化
+    self.dec4 = UnetBlock(nc[-1], nc[-2], 384)
+    self.dec3 = UnetBlock(384, nc[-3], 192)
+    self.dec2 = UnetBlock(192, nc[-4], 96)
+    # FPN (Feature Pyramid Network) の初期化
+    self.fpn = FPN([nc[-1], 384, 192], [32] * 3)
+```
+
+### 4. 学習フロー内でのモデル利用
+
+#### 4.1 DataParallel による並列化
+```python
+# train() 関数内
+model = config["MODEL"]  # CoaT_ULSTM インスタンス
+model = nn.DataParallel(model).cuda()
+```
+
+#### 4.2 Learner への統合
+```python
+learn = Learner(
+    data,
+    model,  # CoaT_ULSTM インスタンスが DataParallel でラップされた状態
+    # ... 他の設定
+)
+```
+
+### 読み込みタイミングサマリー
+
+| タイミング | 処理内容 | 読み込まれるコンポーネント |
+|------------|----------|---------------------------|
+| **スクリプト起動時** | `import` 文実行 | CoaT_ULSTM.py, coat.py, layers.py |
+| **設定解析後** | 動的クラス取得 | 文字列→クラス参照変換 |
+| **初期化時** | `CoaT_ULSTM()` 実行 | エンコーダー・デコーダー・LSTM の構築 |
+| **学習開始前** | DataParallel化 | GPU 並列化準備 |
+| **Learner 作成時** | モデル統合 | fast.ai フレームワークとの統合 |
+
+この読み込みシーケンスにより、コマンドライン引数で指定された CoaT_ULSTM アーキテクチャが動的に選択・初期化され、fast.ai Learner と統合されて学習が実行される。
+
+## まとめ
+
+本プロジェクトにおける fast.ai Learner の活用により、コントレイル検出という複雑なセグメンテーションタスクを効率的に解決している。カスタムコールバック、メトリクス、損失関数の組み合わせにより、高精度かつ安定した学習を実現している。動的なモデル選択機能により、コマンドライン引数で異なるアーキテクチャを柔軟に切り替えることが可能である。

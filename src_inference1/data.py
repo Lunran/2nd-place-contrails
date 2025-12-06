@@ -117,14 +117,14 @@ def get_aug():
 
 
 class ContrailsDatasetV0(Dataset):
-    def __init__(self, path, train=True, tfms=None, repeat=1):
+    def __init__(self, path, train=True, tfms=None, repeat=1, size=None):
         self.path = os.path.join(path, "train_adj2" if train else "val_adj2")
         self.fnames = sorted(
             [
                 fname
                 for fname in os.listdir(self.path)
                 if fname.split(".")[0].split("_")[-1] == "img"
-            ]
+            ][:size]
         )
         self.train, self.tfms = train, tfms
         self.nc = 3
