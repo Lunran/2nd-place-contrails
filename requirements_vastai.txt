@@ -1,0 +1,8 @@
+kaggle
+wandb
+timm
+einops
+opencv-python
+tifffile
+albumentations
+fastai

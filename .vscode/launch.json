@@ -33,7 +33,7 @@
             "request": "launch",
             "module": "base_train",
             "args": [
-                "--size", "1000",
+                "--size", "100",
             ],
             "python": "${workspaceFolder}/.venv/bin/python",
             "env": {

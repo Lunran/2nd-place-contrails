@@ -1,8 +1,10 @@
 #!/bin/bash
 
-DIR_NAME="submit_model"
-pushd $DIR_NAME
-zip -r ../model/${DIR_NAME}.zip *
+DIR_NAME="upload_model"
+mkdir -p ${DIR_NAME}
+
+pushd "experiments"
+zip -r ../${DIR_NAME}/archive.zip CoaT_ULSTM.pth
 popd
 
 echo '{
@@ -13,7 +15,7 @@ echo '{
       "name": "CC0-1.0"
     }
   ]
-}' > ./model/dataset-metadata.json
+}' > ./${DIR_NAME}/dataset-metadata.json
 
-#kaggle datasets create -p ./model   # 初回
-kaggle datasets version -p ./model -m ""   # 2回目以降
+#kaggle datasets create -p ./${DIR_NAME}   # 初回
+kaggle datasets version -p ./${DIR_NAME} -m ""   # 2回目以降

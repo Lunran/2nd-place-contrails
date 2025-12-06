@@ -160,7 +160,12 @@ cython_debug/
 #.idea/
 *.npz
 
-data
-submission.csv
+data/*
+upload_data/*
+upload_code/*
+upload_model/*
 *.pth
-*.zip
+submission.csv
+wandb/*
+
+!.gitkeep

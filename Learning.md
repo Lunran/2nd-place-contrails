@@ -130,11 +130,28 @@ radam_normが極小化したステップではtrust_ratioが1にクリップさ�
 
 #### 10. [ ] vast.ai用の学習スクリプト作成
 
-- 学習実行手順
-  - kaggle apiキーとwandb apiキーをscpで転送
-  - 学習スクリプトを実行。以下が処理概要
-    1. 公開コード、公開データセット、事前学習済みモデルをダウンロード
-    2. データセットを展開
-    3. 学習スクリプトを実行
-    4. コードとモデルをkaggleにアップロード
+学習実行手順
+
+- kaggleとwandbのapiキーを転送
+
+```
+scp -r ~/.kaggle vastai:/root/
+scp -r ~/.wandb vastai:/root/
+scp ~/.tmux.conf vastai:/root/
+```
+
+- コード取得
+
+```
+ssh-keyscan github.com >> /root/.ssh/known_hosts
+git clone https://github.com/Lunran/2nd-place-contrails.git
+```
+
+- 学習スクリプトを実行。以下が処理概要
+    1. 公開コードをgithubからダウンロード
+    2. 公開データセット、事前学習済みモデルをkaggleからダウンロード
+    3. データセットを展開
+    4. 学習スクリプトを実行
+    5. コードとモデルをkaggleにアップロード
+
 - kaggle kernelでの動作確認とsubmitは手動
