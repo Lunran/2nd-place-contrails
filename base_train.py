@@ -30,7 +30,7 @@ if torch.cuda.is_available():
     gc.collect()
 
 MODEL_PATH = "experiments/CoaT_ULSTM.pth"
-EPOCHS = 12
+EPOCHS = 2
 BS = 4
 
 

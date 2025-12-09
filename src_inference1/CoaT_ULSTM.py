@@ -1,9 +1,10 @@
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from collections import OrderedDict
-from .coat import CoaT, coat_lite_mini, coat_lite_small, coat_lite_medium
+from .coat import CoaT, coat_lite_medium, coat_lite_mini, coat_lite_small
 from .layers import *
 
 
@@ -40,12 +41,7 @@ class CoaT_ULSTM(nn.Module):
         nt = x.shape[2]
         x = x.permute(0, 2, 1, 3, 4).flatten(0, 1)
         x = F.interpolate(x, scale_factor=2, mode="bicubic").clip(0, 1)
-        
-        # ImageNet正規化 (CoaTが期待する入力)
-        mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
-        std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
-        x = (x - mean) / std
-        
+
         encs = self.enc(x)
         encs = [encs[k] for k in encs]
         encs = [

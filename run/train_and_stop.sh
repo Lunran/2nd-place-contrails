@@ -1,6 +1,6 @@
 #!/bin/bash
 
-INSTANCE_ID=$(vastai show instances | tail -n +2 | head -n 1 | awk '{print $1}')
+INSTANCE_ID=$(vastai show instances | grep running | head -n 1 | awk '{print $1}')
 read -p "Is $INSTANCE_ID Instance ID? (y/n): " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
