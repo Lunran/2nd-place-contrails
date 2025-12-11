@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
 ResNet18 ImageNet事前学習済み重みをダウンロードするスクリプト
-submit_modelディレクトリに保存
 """
-import os
+import sys
 from pathlib import Path
 
 import torch
 from torchvision.models import ResNet18_Weights, resnet18
 
+DOWNLOAD_DIR = "experiments"
 
-def download_resnet18_weights(output_dir: str = "submit_model"):
+
+def download_resnet18_weights(output_dir):
     """
     ResNet18のImageNet事前学習済み重みをダウンロード
 
@@ -44,11 +45,5 @@ def download_resnet18_weights(output_dir: str = "submit_model"):
 
 
 if __name__ == "__main__":
-    import sys
-
-    # コマンドライン引数から保存先を取得 (デフォルトはsubmit_model)
-    output_dir = sys.argv[1] if len(sys.argv) > 1 else "submit_model"
-
+    output_dir = sys.argv[1] if len(sys.argv) > 1 else DOWNLOAD_DIR
     weights_file = download_resnet18_weights(output_dir)
-    print(f"\n使用方法:")
-    print(f"  モデル初期化時に weights_path='{weights_file}' を指定してください")

@@ -89,11 +89,6 @@ class ResNet18_ULSTM(nn.Module):
         # 256x256 -> 512x512 (bicubic interpolation + clip to [0,1])
         x = F.interpolate(x, scale_factor=2, mode="bicubic").clip(0, 1)
 
-        # ImageNet正規化 (ResNet18が期待する入力)
-        mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
-        std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
-        x = (x - mean) / std
-
         # エンコーダー (ResNet18各層)
         # enc0: (B*T, 64, 128, 128)   # 4x down
         # enc1: (B*T, 64, 128, 128)   # 4x down

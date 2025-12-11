@@ -4,7 +4,8 @@ import json
 import os
 from pathlib import Path
 
-import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 
 import wandb
 from src_inference1.BaseCoatULSTM import BaseCoatULSTM
@@ -24,14 +25,9 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 seed_everything(2023)
 
-# GPUメモリをクリア
-if torch.cuda.is_available():
-    torch.cuda.empty_cache()
-    gc.collect()
-
-MODEL_PATH = "experiments/CoaT_ULSTM.pth"
-EPOCHS = 2
-BS = 4
+MODEL_PATH = "experiments/ResNet18_ULSTM.pth"
+EPOCHS = 1
+BS = 16
 
 
 class WandbCallback(Callback):
@@ -39,7 +35,6 @@ class WandbCallback(Callback):
 
     def after_batch(self):
         """バッチ終了後: 損失と学習率を記録"""
-        print("Batch finished", flush=True)
 
         if self.training and wandb.run is not None:
             try:
@@ -63,18 +58,18 @@ class WandbCallback(Callback):
             try:
                 log_dict = {
                     "epoch": self.epoch,
-                    "train/loss": self.recorder.log[self.epoch][0],
-                    "valid/loss": self.recorder.log[self.epoch][1],
                 }
 
-                # メトリクスを記録（F_thなど）
-                if len(self.recorder.log[self.epoch]) > 2:
-                    log_dict["valid/f_th"] = self.recorder.log[self.epoch][2]
+                if hasattr(self.learn, "recorder") and len(self.learn.recorder.values) > 0:
+                    last_values = self.learn.recorder.values[-1]
+                    log_dict["train/loss"] = last_values[0]
+                    log_dict["val/loss"] = last_values[1]
+                    log_dict["val/f_th"] = last_values[2]
 
                 wandb.log(log_dict)
-                print(f"Epoch {self.epoch} logged to WandB")
+                print(f"Logged to WandB: {log_dict}", flush=True)
             except Exception as e:
-                print(f"WandB epoch logging error: {e}")
+                print(f"WandB epoch logging error: {e}", flush=True)
 
     def after_fit(self):
         """学習終了後: 閾値曲線と予測画像を記録してWandBを終了"""
@@ -83,32 +78,34 @@ class WandbCallback(Callback):
             return
 
         try:
-            # 1. 閾値曲線を記録
-            import pandas as pd
+            # 1. 閾値曲線を記録（現在の学習結果から）
+            if hasattr(self, "metrics") and len(self.metrics) > 0:
+                metrics_obj = self.metrics[0]  # F_th()インスタンス
+                if hasattr(metrics_obj, "ths") and hasattr(metrics_obj, "dices"):
+                    # wandb.plotで閾値 vs Diceの曲線を作成
+                    data = [[th, dice] for th, dice in zip(metrics_obj.ths, metrics_obj.dices.numpy())]
+                    table = wandb.Table(data=data, columns=["threshold", "dice"])
+                    wandb.log(
+                        {
+                            "threshold_curve": wandb.plot.line(
+                                table, "threshold", "dice", title="Threshold vs Dice Score"
+                            )
+                        }
+                    )
 
-            threshold_csv = "experiments/threshold_curve.csv"
-            if os.path.exists(threshold_csv):
-                df = pd.read_csv(threshold_csv)
-                # wandb.plotで閾値 vs Diceの曲線を作成
-                data = [[th, dice] for th, dice in zip(df["threshold"], df["dice"])]
-                table = wandb.Table(data=data, columns=["threshold", "dice"])
-                wandb.log(
-                    {"threshold_curve": wandb.plot.line(table, "threshold", "dice", title="Threshold vs Dice Score")}
-                )
+                    # 最適閾値を記録
+                    optimal_idx = metrics_obj.dices.argmax()
+                    optimal_th = metrics_obj.ths[optimal_idx]
+                    optimal_dice = metrics_obj.dices[optimal_idx].item()
+                    wandb.log(
+                        {
+                            "optimal_threshold": optimal_th,
+                            "optimal_dice": optimal_dice,
+                        }
+                    )
+                    print(f"Threshold curve logged to WandB (optimal: {optimal_th:.3f}, dice: {optimal_dice:.4f})")
 
-                # 最適閾値を記録
-                optimal_idx = df["dice"].argmax()
-                optimal_th = df["threshold"].iloc[optimal_idx]
-                optimal_dice = df["dice"].iloc[optimal_idx]
-                wandb.log(
-                    {
-                        "optimal_threshold": optimal_th,
-                        "optimal_dice": optimal_dice,
-                    }
-                )
-                print(f"Threshold curve logged to WandB (optimal: {optimal_th:.3f}, dice: {optimal_dice:.4f})")
-
-            # 2. 予測画像サンプルを記録（4枚）
+            # 2. 予測画像サンプルを記録（12枚）
             self.learn.model.eval()
             val_dl = self.dls.valid
             images_logged = 0
@@ -116,7 +113,7 @@ class WandbCallback(Callback):
 
             with torch.no_grad():
                 for batch_idx, (xb, yb) in enumerate(val_dl):
-                    if images_logged >= 4:
+                    if images_logged >= 12:
                         break
 
                     # 予測を取得
@@ -124,7 +121,7 @@ class WandbCallback(Callback):
 
                     # バッチ内の各サンプルを処理
                     for i in range(xb.shape[0]):
-                        if images_logged >= 4:
+                        if images_logged >= 12:
                             break
 
                         # 入力画像（中央のタイムステップを使用）
@@ -138,23 +135,42 @@ class WandbCallback(Callback):
                         # 予測マスク
                         pred_mask = preds[i, 0].cpu().numpy()  # (H, W)
 
-                        # WandB Imageを作成（マスクをオーバーレイ）
+                        # matplotlibで3列レイアウトの画像を作成
+                        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+                        # 左: 入力画像
+                        axes[0].imshow(input_img)
+                        axes[0].set_title("Input")
+                        axes[0].axis("off")
+
+                        # 中央: Ground Truth
+                        axes[1].imshow(gt_mask, cmap="gray", vmin=0, vmax=1)
+                        axes[1].set_title("Ground Truth")
+                        axes[1].axis("off")
+
+                        # 右: 予測Probability
+                        im = axes[2].imshow(pred_mask, cmap="viridis", vmin=0, vmax=1)
+                        axes[2].set_title("Prediction Probability")
+                        axes[2].axis("off")
+                        plt.colorbar(im, ax=axes[2], fraction=0.046, pad=0.04)
+
+                        plt.tight_layout()
+
+                        # 図をnumpy配列に変換
+                        fig.canvas.draw()
+                        buf = np.array(fig.canvas.buffer_rgba())
+                        img_array = buf[:, :, :3]  # RGBA -> RGB
+
+                        # WandB Imageを作成
                         wandb_images.append(
                             wandb.Image(
-                                input_img,
-                                masks={
-                                    "predictions": {
-                                        "mask_data": pred_mask,
-                                        "class_labels": {0: "background", 1: "contrail"},
-                                    },
-                                    "ground_truth": {
-                                        "mask_data": gt_mask,
-                                        "class_labels": {0: "background", 1: "contrail"},
-                                    },
-                                },
+                                img_array,
                                 caption=f"Sample {images_logged + 1}",
                             )
                         )
+
+                        # メモリ解放
+                        plt.close(fig)
                         images_logged += 1
 
             if wandb_images:
@@ -195,16 +211,17 @@ def main(args):
     # model.enc.load_state_dict(torch.load("data/coat_lite_medium_384x384_f9129688.pth")["model"], strict=False)
 
     # オプション3: CoaT_ULSTM（LSTM + 事前学習済みCoaT）
-    model = CoaT_ULSTM(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
+    # model = CoaT_ULSTM(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
 
-    metrics = F_th()
+    # model = ResNet18_Simple(weights_path="data/resnet18-imagenet.pth").cuda()
+    model = ResNet18_ULSTM(weights_path="data/resnet18-imagenet.pth").cuda()
 
     learn = Learner(
         data,
         model,
         path="experiments",
         loss_func=loss_comb,
-        metrics=metrics,
+        metrics=F_th(),
         cbs=[
             GradientClip(3.0),  # CoaT向けに最適化
             GradientAccumulation(int(16 / BS + 0.5)),
@@ -244,13 +261,6 @@ def main(args):
     # 学習率を最適化（CoaT向けに調整: config.jsonと同じ3.5e-4）
     learn.fit_one_cycle(EPOCHS, lr_max=3.5e-4, pct_start=0.1)
     torch.save(learn.model.state_dict(), MODEL_PATH)
-
-    # 最適閾値の取得と表示
-    optimal_th = metrics.optimal_threshold
-    optimal_dice = metrics.value
-    print(f"\n最適閾値: {optimal_th:.3f}, 最適Dice: {optimal_dice:.4f}")
-    threshold_df = pd.DataFrame({"threshold": metrics.ths, "dice": metrics.dices.numpy()})
-    threshold_df.to_csv("experiments/threshold_curve.csv", index=False)
 
     if wandb.run is not None:
         wandb.run.summary["optimal_threshold"] = optimal_th

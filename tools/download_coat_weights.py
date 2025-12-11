@@ -7,8 +7,10 @@ import sys
 import urllib.request
 from pathlib import Path
 
+DOWNLOAD_DIR = "experiments"
 
-def download_coat_weights(output_dir: str = "experiments"):
+
+def download_coat_weights(output_dir: str):
     """
     CoaT-Lite MediumのImageNet事前学習済み重みをダウンロード
 
@@ -65,26 +67,5 @@ def download_coat_weights(output_dir: str = "experiments"):
 
 
 if __name__ == "__main__":
-    # コマンドライン引数から保存先を取得 (デフォルトはexperiments)
     output_dir = sys.argv[1] if len(sys.argv) > 1 else "experiments"
-
-    print("=" * 70)
-    print("CoaT-Lite Medium 事前学習済み重みダウンロードスクリプト")
-    print("=" * 70)
-
     weights_files = download_coat_weights(output_dir)
-
-    print("\n" + "=" * 70)
-    print("ダウンロード完了")
-    print("=" * 70)
-    print("\n使用方法:")
-    print("  # 384x384版（推奨 - 512x512入力に適合）")
-    print(f"  model = CoaT_SimplerFCN(")
-    print(f"      pre='experiments/coat_lite_medium_384x384_f9129688.pth',")
-    print(f"      arch='medium'")
-    print(f"  )")
-    print("\n  # 224x224版（標準）")
-    print(f"  model = CoaT_SimplerFCN(")
-    print(f"      pre='experiments/coat_lite_medium_a750cd63.pth',")
-    print(f"      arch='medium'")
-    print(f"  )")

@@ -128,7 +128,7 @@ radam_normが極小化したステップではtrust_ratioが1にクリップさ�
 
 - 閾値探索を追加
 
-#### 10. [ ] vast.ai用の学習スクリプト作成
+#### 10. [x] vast.ai用の学習スクリプト作成
 
 学習実行手順
 
@@ -155,3 +155,7 @@ git clone https://github.com/Lunran/2nd-place-contrails.git
     5. コードとモデルをkaggleにアップロード
 
 - kaggle kernelでの動作確認とsubmitは手動
+
+#### 11. [ ] データ前処理
+
+- ResNet18_Simpleで学習できるところまで

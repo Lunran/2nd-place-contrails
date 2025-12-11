@@ -5,6 +5,20 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "base_train",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "base_train",
+            // "args": [
+            //     "--size", "100",
+            // ],
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+            },
+            "justMyCode": false
+        },
+        {
             "name": "train",
             "type": "debugpy",
             "request": "launch",
@@ -27,19 +41,5 @@
             },
             "justMyCode": false
         },
-        {
-            "name": "base_train",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "base_train",
-            "args": [
-                "--size", "100",
-            ],
-            "python": "${workspaceFolder}/.venv/bin/python",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}",
-            },
-            "justMyCode": false
-        }
     ]
 }
