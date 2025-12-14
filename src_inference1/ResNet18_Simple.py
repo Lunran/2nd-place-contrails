@@ -19,17 +19,22 @@ class ResNet18_Simple(nn.Module):
     パラメータ数: ~12M (最も軽量)
     """
 
-    def __init__(self, weights_path=None, num_classes=1, **kwargs):
+    def __init__(self, pretrained=True, num_classes=1, ps=0.0, weights_path=None, **kwargs):
         super().__init__()
 
-        if weights_path:
+        # ResNet18エンコーダー (事前学習済み)
+        if pretrained and weights_path is None:
+            # デフォルト: submit_modelディレクトリから読み込み
+            weights_path = os.path.join(os.path.dirname(__file__), "..", "submit_model", "resnet18-imagenet.pth")
+
+        if pretrained and weights_path and os.path.exists(weights_path):
             # ローカルファイルから重みを読み込み
             backbone = resnet18(weights=None)
             state_dict = torch.load(weights_path, map_location="cpu")
             backbone.load_state_dict(state_dict)
         else:
             # オンラインダウンロード（フォールバック）
-            backbone = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
+            backbone = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1 if pretrained else None)
 
         # ResNet18の各層を抽出
         self.enc0 = nn.Sequential(

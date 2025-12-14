@@ -25,8 +25,8 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 seed_everything(2023)
 
-MODEL_PATH = "experiments/ResNet18_ULSTM.pth"
-EPOCHS = 1
+MODEL = "ResNet18_Simple"
+EPOCHS = 12
 BS = 16
 
 
@@ -213,8 +213,9 @@ def main(args):
     # オプション3: CoaT_ULSTM（LSTM + 事前学習済みCoaT）
     # model = CoaT_ULSTM(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
 
-    # model = ResNet18_Simple(weights_path="data/resnet18-imagenet.pth").cuda()
-    model = ResNet18_ULSTM(weights_path="data/resnet18-imagenet.pth").cuda()
+    model = ResNet18_Simple(weights_path="data/resnet18-imagenet.pth").cuda()
+    # model = ResNet18_U(weights_path="data/resnet18-imagenet.pth").cuda()
+    # model = ResNet18_ULSTM(weights_path="data/resnet18-imagenet.pth").cuda()
 
     learn = Learner(
         data,
@@ -246,7 +247,7 @@ def main(args):
             "gradient_accumulation": int(16 / BS + 0.5),
             "learning_rate": 3.5e-4,
             "pct_start": 0.1,
-            "model": "CoaT_ULSTM",
+            "model": MODEL,
             "loss_function": "BCE + 0.01 * Lovasz",
             "optimizer": "WrapperOver9000 (RAdam + LAMB + Lookahead)",
             "scheduler": "OneCycle",
@@ -260,7 +261,7 @@ def main(args):
 
     # 学習率を最適化（CoaT向けに調整: config.jsonと同じ3.5e-4）
     learn.fit_one_cycle(EPOCHS, lr_max=3.5e-4, pct_start=0.1)
-    torch.save(learn.model.state_dict(), MODEL_PATH)
+    torch.save(learn.model.state_dict(), f"experiments/{MODEL}.pth")
 
     if wandb.run is not None:
         wandb.run.summary["optimal_threshold"] = optimal_th
