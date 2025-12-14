@@ -25,8 +25,8 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 seed_everything(2023)
 
-MODEL = "ResNet18_Simple"
-EPOCHS = 12
+MODEL = "CoaT_Simple"
+EPOCHS = 1
 BS = 16
 
 
@@ -201,19 +201,13 @@ def main(args):
 
     data = ImageDataLoaders.from_dsets(ds_train, ds_val, bs=BS, num_workers=4, pin_memory=True).cuda()
 
-    # モデル選択（ImageNet正規化対応版）
-    # オプション1: CoaT_U（U-Net + 事前学習済みCoaT）
+    model = CoaT_Simple(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
     # model = CoaT_U(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
-
-    # オプション2: BaseCoatULSTM（LSTM + 事前学習済みCoaT）
+    # model = CoaT_ULSTM(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
     # model = BaseCoatULSTM().cuda()
-    # 事前学習済み重みを読み込む場合：
     # model.enc.load_state_dict(torch.load("data/coat_lite_medium_384x384_f9129688.pth")["model"], strict=False)
 
-    # オプション3: CoaT_ULSTM（LSTM + 事前学習済みCoaT）
-    # model = CoaT_ULSTM(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
-
-    model = ResNet18_Simple(weights_path="data/resnet18-imagenet.pth").cuda()
+    # model = ResNet18_Simple(weights_path="data/resnet18-imagenet.pth").cuda()
     # model = ResNet18_U(weights_path="data/resnet18-imagenet.pth").cuda()
     # model = ResNet18_ULSTM(weights_path="data/resnet18-imagenet.pth").cuda()
 
