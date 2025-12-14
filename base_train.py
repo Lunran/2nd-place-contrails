@@ -25,7 +25,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 seed_everything(2023)
 
-MODEL = "CoaT_Simple"
+MODEL = "ResNet18_U"
 EPOCHS = 1
 BS = 16
 
@@ -201,14 +201,14 @@ def main(args):
 
     data = ImageDataLoaders.from_dsets(ds_train, ds_val, bs=BS, num_workers=4, pin_memory=True).cuda()
 
-    model = CoaT_Simple(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
+    # model = CoaT_Simple(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
     # model = CoaT_U(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
     # model = CoaT_ULSTM(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
     # model = BaseCoatULSTM().cuda()
     # model.enc.load_state_dict(torch.load("data/coat_lite_medium_384x384_f9129688.pth")["model"], strict=False)
 
     # model = ResNet18_Simple(weights_path="data/resnet18-imagenet.pth").cuda()
-    # model = ResNet18_U(weights_path="data/resnet18-imagenet.pth").cuda()
+    model = ResNet18_U(weights_path="data/resnet18-imagenet.pth").cuda()
     # model = ResNet18_ULSTM(weights_path="data/resnet18-imagenet.pth").cuda()
 
     learn = Learner(
