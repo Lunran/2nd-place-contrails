@@ -156,6 +156,15 @@ git clone https://github.com/Lunran/2nd-place-contrails.git
 
 - kaggle kernelでの動作確認とsubmitは手動
 
-#### 11. [ ] データ前処理
+#### 11. [x] データ前処理
 
-- ResNet18_Simpleで学習できるところまで
+- データセットを作成し、既存のResNet18_Uで学習する
+    - 1epoch, size=10000
+- 基本的には公式のvisualizing-contrails.ipynbのまま
+    - band11,14,15のash偽色画像とgtマスクのみ
+- 追加処理
+    - uint8量子化、hdf5保存
+
+#### 12. [ ] モデル作成
+
+ResNet18_Uを作成して学習する

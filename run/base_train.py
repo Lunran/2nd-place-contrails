@@ -2,7 +2,12 @@ import argparse
 import gc
 import json
 import os
+import sys
 from pathlib import Path
+
+# プロジェクトルートをPythonパスに追加
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,7 +17,7 @@ from src_inference1.BaseCoatULSTM import BaseCoatULSTM
 from src_inference1.CoaT_Simple import CoaT_Simple, CoaT_SimplerFCN
 from src_inference1.CoaT_U import CoaT_U
 from src_inference1.CoaT_ULSTM import CoaT_ULSTM
-from src_inference1.data import ContrailsDatasetV0, get_aug
+from src_inference1.data import ContrailsDatasetV0, ContrailsDatasetV1, get_aug
 from src_inference1.fastai_fix import *
 from src_inference1.lovasz import lovasz_hinge
 from src_inference1.ResNet18_Simple import ResNet18_Simple
@@ -196,20 +201,20 @@ def loss_comb(x, y):
 
 
 def main(args):
-    ds_train = ContrailsDatasetV0("data/", train=True, tfms=get_aug(), size=args.size)
-    ds_val = ContrailsDatasetV0("data", train=False, tfms=None, size=args.size)
+    ds_train = ContrailsDatasetV1("data", train=True, tfms=get_aug(), size=args.size)
+    ds_val = ContrailsDatasetV1("data", train=False, tfms=None, size=args.size)
 
     data = ImageDataLoaders.from_dsets(ds_train, ds_val, bs=BS, num_workers=4, pin_memory=True).cuda()
 
-    # model = CoaT_Simple(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
-    # model = CoaT_U(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
-    # model = CoaT_ULSTM(pre="data/coat_lite_medium_384x384_f9129688.pth").cuda()
+    # model = CoaT_Simple(pre="experiments/coat_lite_medium_384x384_f9129688.pth").cuda()
+    # model = CoaT_U(pre="experiments/coat_lite_medium_384x384_f9129688.pth").cuda()
+    # model = CoaT_ULSTM(pre="experiments/coat_lite_medium_384x384_f9129688.pth").cuda()
     # model = BaseCoatULSTM().cuda()
-    # model.enc.load_state_dict(torch.load("data/coat_lite_medium_384x384_f9129688.pth")["model"], strict=False)
+    # model.enc.load_state_dict(torch.load("experiments/coat_lite_medium_384x384_f9129688.pth")["model"], strict=False)
 
-    # model = ResNet18_Simple(weights_path="data/resnet18-imagenet.pth").cuda()
-    model = ResNet18_U(weights_path="data/resnet18-imagenet.pth").cuda()
-    # model = ResNet18_ULSTM(weights_path="data/resnet18-imagenet.pth").cuda()
+    # model = ResNet18_Simple(weights_path="experiments/resnet18-imagenet.pth").cuda()
+    model = ResNet18_U(weights_path="experiments/resnet18-imagenet.pth").cuda()
+    # model = ResNet18_ULSTM(weights_path="experiments/resnet18-imagenet.pth").cuda()
 
     learn = Learner(
         data,

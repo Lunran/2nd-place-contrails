@@ -8,10 +8,10 @@
             "name": "base_train",
             "type": "debugpy",
             "request": "launch",
-            "module": "base_train",
-            // "args": [
-            //     "--size", "100",
-            // ],
+            "module": "run.base_train",
+            "args": [
+                "--size", "100",
+            ],
             "python": "${workspaceFolder}/.venv/bin/python",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}",
