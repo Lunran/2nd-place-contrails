@@ -28,7 +28,7 @@ else
 fi
 
 echo "Starting training..."
-python -m base_train 2>&1 | tee train.log || true
+python -m run.train 2>&1 | tee train.log || true
 
 echo "Starting model upload..."
 ./tools/upload_model.sh || true

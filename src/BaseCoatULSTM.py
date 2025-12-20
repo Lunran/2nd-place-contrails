@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .coat import coat_lite_medium
-from .layers import FPN, LSTM_block, UnetBlock, UpBlock
+from ..src_inference1.coat import coat_lite_medium
+from ..src_inference1.layers import FPN, LSTM_block, UnetBlock, UpBlock
 
 
 class BaseCoatULSTM(nn.Module):
@@ -35,7 +35,7 @@ class BaseCoatULSTM(nn.Module):
         # Step 2: bicubic補間後
         # (B*T, C, H, W) = (5, 3, 256*2, 256*2) = (5, 3, 512, 512)
         x = F.interpolate(x, scale_factor=2, mode="bicubic").clip(0, 1)
-        
+
         # ImageNet正規化 (CoaTが期待する入力)
         mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
         std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)

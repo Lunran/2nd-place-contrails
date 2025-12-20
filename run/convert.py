@@ -29,11 +29,6 @@ def main():
         choices=["train", "validation"],
         help="変換するデータタイプ (train または validation)",
     )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="既存ファイルを確認なしで上書き",
-    )
 
     args = parser.parse_args()
 
@@ -41,13 +36,10 @@ def main():
     input_dir = os.path.join(project_root, "data", args.data_type)
     output_file = os.path.join(project_root, "data", f"{args.data_type}.hdf5")
 
-    # 既存ファイルの上書き確認
-    if os.path.exists(output_file) and not args.force:
-        print(f"警告: 出力ファイルが既に存在します: {output_file}")
-        response = input("上書きしますか？ (y/n): ").lower().strip()
-        if response not in ["y", "yes"]:
-            print("処理をキャンセルしました。")
-            return
+    # 既存ファイルの確認
+    if os.path.exists(output_file):
+        print(f"出力ファイルが既に存在します: {output_file}")
+        return
 
     print("=" * 80)
     print(f"{args.data_type.capitalize()} データを HDF5 形式に変換")
@@ -55,9 +47,7 @@ def main():
     print()
 
     # 変換実行
-    convert_to_hdf5(
-        base_dir=input_dir, output_path=output_file, compression="gzip", compression_opts=4  # 圧縮レベル（1-9）
-    )
+    convert_to_hdf5(base_dir=input_dir, output_path=output_file, compression="gzip", compression_opts=4)
 
     print()
     print("=" * 80)

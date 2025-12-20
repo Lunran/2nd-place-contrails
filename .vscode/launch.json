@@ -5,10 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "base_train",
+            "name": "run.base_train",
             "type": "debugpy",
             "request": "launch",
             "module": "run.base_train",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+            },
+            "justMyCode": false
+        },
+        {
+            "name": "run.train",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "run.train",
             "args": [
                 "--size", "100",
             ],

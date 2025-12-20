@@ -138,7 +138,7 @@ def get_false_color(band11: np.ndarray, band14: np.ndarray, band15: np.ndarray, 
         return false_color.astype(np.float32)
 
 
-def process_single_record(base_dir: str, record_id: str, use_uint8: bool = True) -> Dict[str, np.ndarray]:
+def process_single_record(base_dir: str, record_id: str, use_uint8: bool) -> Dict[str, np.ndarray]:
     """
     1つのレコードを処理してデータを返す
 
