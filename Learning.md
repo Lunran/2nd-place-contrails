@@ -165,6 +165,10 @@ git clone https://github.com/Lunran/2nd-place-contrails.git
 - 追加処理
     - uint8量子化、hdf5保存
 
-#### 12. [ ] モデル作成
+#### 12. [x] テンプレート作成
 
-ResNet18_Uを作成して学習する
+fastaiで用意されたResNet + UNet、CamVidデータセットの動作確認
+
+#### 13. [x] ベースライン作成
+
+fastaiで用意されたResNet + UNet、Contrailsデータセットの動作確認

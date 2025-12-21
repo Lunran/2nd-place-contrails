@@ -170,3 +170,31 @@ class ContrailsDatasetV1(Dataset):
         img = img.view(self.nc, -1, *img.shape[1:])
 
         return img, mask
+
+
+class ContrailsDatasetV1Single(Dataset):
+    def __init__(self, path, train=True, tfms=None, repeat=1, size=None):
+        path = os.path.join(path, "train.hdf5" if train else "validation.hdf5")
+        self.f = h5py.File(path, "r")
+        self.fnames = list(self.f.keys())[:size]
+        self.train, self.tfms = train, tfms
+        self.nc = 3
+        self.repeat = repeat
+
+    def __len__(self):
+        return self.repeat * len(self.fnames)
+
+    def __getitem__(self, idx):
+        idx = idx % len(self.fnames)
+        img = self.f[self.fnames[idx]]["bands"][:]
+        img = img.reshape(*img.shape[:2], self.nc, -1)[:, :, :, 4]
+        mask = self.f[self.fnames[idx]]["pixel_mask"][:]
+
+        if self.tfms is not None:
+            augmented = self.tfms(image=img, mask=mask)
+            img, mask = augmented["image"], augmented["mask"]
+
+        img = cv2.resize(img, (1 * img.shape[1], 1 * img.shape[0]), interpolation=cv2.INTER_CUBIC)
+        img, mask = img2tensor(img / 255), img2tensor(mask / 255)
+
+        return img, mask
