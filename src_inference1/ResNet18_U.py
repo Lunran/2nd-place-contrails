@@ -37,8 +37,8 @@ class ResNet18_U(nn.Module):
 
         # ResNet18の各層を抽出
         self.enc0 = nn.Sequential(
-            backbone.conv1, backbone.bn1, backbone.relu, backbone.maxpool  # 64, stride=2  # stride=2
-        )
+            backbone.conv1, backbone.bn1, backbone.relu, backbone.maxpool
+        )  # 64 channels, stride=2
         self.enc1 = backbone.layer1  # 64 channels, stride=1 (total: 4x down)
         self.enc2 = backbone.layer2  # 128 channels, stride=2 (total: 8x down)
         self.enc3 = backbone.layer3  # 256 channels, stride=2 (total: 16x down)

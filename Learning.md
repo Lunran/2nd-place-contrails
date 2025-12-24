@@ -172,3 +172,25 @@ fastaiで用意されたResNet + UNet、CamVidデータセットの動作確認
 #### 13. [x] ベースライン作成
 
 fastaiで用意されたResNet + UNet、Contrailsデータセットの動作確認
+
+#### 14. [x] 独自作成のResNet + UNet
+
+- submit確認
+- CV 0.55, Public LB 0.04 汎化性能？
+
+#### 15. [ ] 独自作成のResNet + LSTM + UNet
+
+- submit確認
+- CV , Public LB 
+
+#### 16. [] 精度改善確認
+
+[] 学習改善
+  - AdamW -> Over9000
+[] データ改善
+  - uint8 -> float
+[] モデル改善
+  - (ablation) FPN, UnetBlock, UpBlock
+  - ResNet18_ULSTM
+  - CoaT_U
+  - CoaT_ULSTM

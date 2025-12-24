@@ -4,25 +4,20 @@ import gc
 import pandas as pd
 from tqdm import tqdm
 
-from src_inference1.CoaT_ULSTM import CoaT_ULSTM
-
-# from BaseCoatULSTM import BaseCoatULSTM
 from src_inference1.data import ContrailsDataset, rle_encode_less_memory
 from src_inference1.fastai_fix import *
-from src_inference1.ResNet18_Simple import ResNet18_Simple
 from src_inference1.ResNet18_U import ResNet18_U
-from src_inference1.ResNet18_ULSTM import ResNet18_ULSTM
 
 BS = 1
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--model_path", type=str, default="experiments/ResNet18_Simple.pth", help="Path to the model file")
-parser.add_argument("--threshold", type=float, default=0.38, help="Threshold for binary classification")
+parser.add_argument("--model_path", type=str, default="experiments/ResNet18_U.pth", help="Path to the model file")
+parser.add_argument("--threshold", type=float, default=0.25, help="Threshold for binary classification")
 parser.add_argument("--data_path", type=str, default="data/test", help="Path to the test data")
 parser.add_argument(
     "--weights_path",
     type=str,
-    default="experiments/resnet18-imagenet.pth",
+    default="data/resnet18-imagenet.pth",
     help="Path to weights file",
 )
 parser.add_argument("--output_path", type=str, default="./submission.csv", help="Path to output file")
@@ -32,7 +27,7 @@ ds = ContrailsDataset(args.data_path)
 dl = DataLoader(ds, BS, shuffle=False, num_workers=min(2, BS))
 
 MODELS = []
-MODELS += [(args.model_path, ResNet18_Simple, 1)]
+MODELS += [(args.model_path, ResNet18_U, 1)]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

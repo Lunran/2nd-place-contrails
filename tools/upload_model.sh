@@ -4,7 +4,7 @@ DIR_NAME="upload_model"
 mkdir -p ${DIR_NAME}
 
 pushd "experiments"
-zip -r ../${DIR_NAME}/archive.zip ResNet18_Simple.pth resnet18-imagenet.pth
+zip -r ../${DIR_NAME}/archive.zip ResNet18_U.pth resnet18-imagenet.pth
 popd
 
 echo '{

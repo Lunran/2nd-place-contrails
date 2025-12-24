@@ -4,7 +4,7 @@ DIR_NAME="upload_data"
 mkdir -p ${DIR_NAME}
 
 pushd "data"  
-zip -r ../${DIR_NAME}/archive.zip coat_lite_medium_384x384_f9129688.pth test train_adj2 val_adj2
+zip -r ../${DIR_NAME}/archive.zip test train.hdf5 validation.hdf5 resnet18-imagenet.pth
 popd
 
 echo '{
@@ -17,5 +17,5 @@ echo '{
   ]
 }' > ./${DIR_NAME}/dataset-metadata.json
 
-kaggle datasets create -p ./${DIR_NAME}   # 初回
-#kaggle datasets version -p ./${DIR_NAME} -m ""   # 2回目以降
+#kaggle datasets create -p ./${DIR_NAME}   # 初回
+kaggle datasets version -p ./${DIR_NAME} -m ""   # 2回目以降
