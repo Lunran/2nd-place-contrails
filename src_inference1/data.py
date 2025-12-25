@@ -74,15 +74,15 @@ class ContrailsDataset(Dataset):
         idx = idx % len(self.fnames)
         record = read_record(os.path.join(self.path, self.fnames[idx]), ["band_11", "band_14", "band_15"])
         img = get_false_color(record, full=True)
-        h, w, c, t = img.shape  # 256,256,3,8
+        h, w, c, t = img.shape  # 256, 256, 3, 8
         img = img.reshape(h, w, t * c)
 
-        # img = img.reshape(*img.shape[:2],self.nc,-1)#[:,:,:,:6]
-        # img = img.reshape(*img.shape[:2],-1)
+        img = img.reshape(*img.shape[:2], c, -1)[:, :, :, :5]
+        img = img.reshape(*img.shape[:2], -1)
         img = (img.clip(0, 1) * 255).astype(np.uint8).astype(np.float32) / 255
 
-        # img = cv2.resize(img, (2*img.shape[1],2*img.shape[0]), interpolation=cv2.INTER_CUBIC)
-        img = img2tensor(img)
+        # img = cv2.resize(img, (1 * img.shape[1], 1 * img.shape[0]), interpolation=cv2.INTER_CUBIC)
+        img = img2tensor(img / 255)
         img = img.view(c, -1, *img.shape[1:])
 
         return img, self.fnames[idx]
@@ -165,7 +165,7 @@ class ContrailsDatasetV1(Dataset):
             augmented = self.tfms(image=img, mask=mask)
             img, mask = augmented["image"], augmented["mask"]
 
-        img = cv2.resize(img, (1 * img.shape[1], 1 * img.shape[0]), interpolation=cv2.INTER_CUBIC)
+        # img = cv2.resize(img, (1 * img.shape[1], 1 * img.shape[0]), interpolation=cv2.INTER_CUBIC)
         img, mask = img2tensor(img / 255), img2tensor(mask / 255)
         img = img.view(self.nc, -1, *img.shape[1:])
 

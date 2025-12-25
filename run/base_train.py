@@ -4,13 +4,13 @@ import matplotlib.pyplot as plt
 from fastai.vision.all import *
 
 import wandb
-from src.BaseResNetU import BaseResNetU
-from src_inference1.data import ContrailsDatasetV1Single
+from src.BaseResNet import BaseResNetULSTM
+from src_inference1.data import ContrailsDatasetV1
 from src_inference1.utils import F_th
 
-MODEL = "ResNet18_U"
+MODEL = "ResNet18_ULSTM"
 EPOCHS = 1
-BS = 16
+BS = 12
 
 
 class WandbCallback(Callback):
@@ -86,7 +86,7 @@ class WandbCallback(Callback):
 
                     # 入力画像（中央のタイムステップを使用）
                     # xb shape: (B, C, H, W) -> (B, 3, 256, 256)
-                    input_img = xb[i, :, :, :].cpu().numpy().transpose(1, 2, 0)  # (H, W, 3)
+                    input_img = xb[i, :, -1, :, :].cpu().numpy().transpose(1, 2, 0)  # (H, W, 3)
                     input_img = (input_img - input_img.min()) / (input_img.max() - input_img.min() + 1e-8)
 
                     # Ground truth
@@ -165,10 +165,10 @@ def main(args):
     print(f"✓ WandB initialized: {wandb_run.name}", flush=True)
     print(f"✓ View run at: {wandb_run.url}\n", flush=True)
 
-    ds_train = ContrailsDatasetV1Single("data", train=True, tfms=None, size=args.size)
-    ds_val = ContrailsDatasetV1Single("data", train=False, tfms=None, size=args.size)
+    ds_train = ContrailsDatasetV1("data", train=True, tfms=None, size=args.size)
+    ds_val = ContrailsDatasetV1("data", train=False, tfms=None, size=args.size)
     dls = ImageDataLoaders.from_dsets(ds_train, ds_val, bs=BS, num_workers=4, pin_memory=False).cuda()
-    model = BaseResNetU(weight_path="data/resnet18-imagenet.pth")
+    model = BaseResNetULSTM(weight_path="data/resnet18-imagenet.pth")
 
     learn = Learner(
         dls,

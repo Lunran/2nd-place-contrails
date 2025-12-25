@@ -4,7 +4,7 @@
 DIR_NAME="upload_code"
 mkdir -p ${DIR_NAME}
 
-zip -r ${DIR_NAME}/icrgw2023-code.zip run src_inference1
+zip -r ${DIR_NAME}/icrgw2023-code.zip run src src_inference1
 
 echo '{
   "title": "icrgw2023-code",

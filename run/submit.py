@@ -4,15 +4,15 @@ import gc
 import pandas as pd
 from tqdm import tqdm
 
+from src.BaseResNet import BaseResNetULSTM
 from src_inference1.data import ContrailsDataset, rle_encode_less_memory
 from src_inference1.fastai_fix import *
-from src_inference1.ResNet18_U import ResNet18_U
 
 BS = 1
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--model_path", type=str, default="experiments/ResNet18_U.pth", help="Path to the model file")
-parser.add_argument("--threshold", type=float, default=0.25, help="Threshold for binary classification")
+parser.add_argument("--model_path", type=str, default="experiments/ResNet18_ULSTM.pth", help="Path to the model file")
+parser.add_argument("--threshold", type=float, default=0.23, help="Threshold for binary classification")
 parser.add_argument("--data_path", type=str, default="data/test", help="Path to the test data")
 parser.add_argument(
     "--weights_path",
@@ -27,7 +27,7 @@ ds = ContrailsDataset(args.data_path)
 dl = DataLoader(ds, BS, shuffle=False, num_workers=min(2, BS))
 
 MODELS = []
-MODELS += [(args.model_path, ResNet18_U, 1)]
+MODELS += [(args.model_path, BaseResNetULSTM, 1)]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

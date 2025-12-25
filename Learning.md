@@ -173,10 +173,11 @@ fastaiで用意されたResNet + UNet、CamVidデータセットの動作確認
 
 fastaiで用意されたResNet + UNet、Contrailsデータセットの動作確認
 
-#### 14. [x] 独自作成のResNet + UNet
+#### 14. [ ] 独自作成のResNet + UNet
 
 - submit確認
-- CV 0.55, Public LB 0.04 汎化性能？
+- 間違って以前のResNet18_Uを使ってしまった
+  - CV 0.55, Public LB 0.04 汎化性能？
 
 #### 15. [ ] 独自作成のResNet + LSTM + UNet
 
@@ -188,8 +189,9 @@ fastaiで用意されたResNet + UNet、Contrailsデータセットの動作確�
 [] 学習改善
   - AdamW -> Over9000
 [] データ改善
-  - uint8 -> float
+  - uint8 -> uint16, float
 [] モデル改善
+  - afterの3枚を使う
   - (ablation) FPN, UnetBlock, UpBlock
   - ResNet18_ULSTM
   - CoaT_U

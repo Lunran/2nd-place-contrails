@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "BaseResNetU",
+            "name": "BaseResNet",
             "type": "debugpy",
             "request": "launch",
-            "module": "src.BaseResNetU",
+            "module": "src.BaseResNet",
             "python": "${workspaceFolder}/.venv/bin/python",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}",
@@ -30,13 +30,10 @@
             "justMyCode": false
         },
         {
-            "name": "train",
+            "name": "submit",
             "type": "debugpy",
             "request": "launch",
-            "module": "run.train",
-            "args": [
-                "--size", "100",
-            ],
+            "module": "run.submit",
             "python": "${workspaceFolder}/.venv/bin/python",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}",
